@@ -1,0 +1,1092 @@
+<!--
+================================================================================
+PRODUCT MANUAL ASSISTANT
+================================================================================
+AI-powered product manual navigation and knowledge extraction.
+
+Features:
+- PDF manual upload and processing
+- ScaleDown compression for efficient extraction
+- Gemini AI for knowledge categorization
+- Interactive chat with manual content
+- Annotation tools for diagrams
+- Metrics and analytics dashboard
+
+Dependencies:
+- PDF.js (Mozilla) - PDF rendering and text extraction
+- Font Awesome - Icons
+- Marked.js - Markdown rendering
+- Google Fonts (Outfit) - Typography
+
+Author: SUDHARSAN G S
+================================================================================
+-->
+<!doctype html>
+<html lang="en" data-theme="light">
+    <head>
+        <!-- ==================== META & TITLE ==================== -->
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Product Manual Assistant</title>
+        <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+        <!-- ==================== FONTS & STYLES ==================== -->
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+        />
+        <link rel="stylesheet" href="style.css" />
+        <!-- ==================== SCRIPTS ==================== -->
+        <!-- PDF.js - Mozilla's PDF rendering library -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+        <script>
+            // Configure PDF.js worker
+            pdfjsLib.GlobalWorkerOptions.workerSrc =
+                "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+            // Suppress noisy PDF.js warnings (font issues, etc.)
+            const ORIGINAL_CONSOLE_WARN = console.warn;
+            console.warn = function (...args) {
+                if (
+                    args[0] &&
+                    typeof args[0] === "string" &&
+                    (args[0].includes("ignoring character") ||
+                        args[0].includes("Requesting object") ||
+                        args[0].includes("Cannot load system font"))
+                )
+                    return;
+                ORIGINAL_CONSOLE_WARN.apply(console, args);
+            };
+        </script>
+        <!-- Marked.js - Markdown to HTML renderer for chat responses -->
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/9.1.2/marked.min.js"></script>
+    </head>
+    <body>
+        <!-- ==================== BACKGROUND DECORATION ==================== -->
+        <!-- Animated gradient blobs for visual appeal -->
+        <div class="background-blobs">
+            <div class="blob blob-1"></div>
+            <div class="blob blob-2"></div>
+            <div class="blob blob-3"></div>
+        </div>
+
+        <!-- ==================== MAIN APP CONTAINER ==================== -->
+        <div class="app-container">
+            <!-- ==================== HEADER ==================== -->
+            <!-- Contains logo, action buttons, theme toggle -->
+            <header class="glass-header">
+                <div class="logo">
+                    <i class="fa-solid fa-book-medical"></i>
+                    <h1>Manual Assistant</h1>
+                </div>
+                <div class="header-actions">
+                    <button
+                        id="cross-search-btn-header"
+                        class="header-btn"
+                        title="Cross-Manual Search"
+                    >
+                        <i class="fa-solid fa-magnifying-glass-plus"></i>
+                        <span class="header-btn-label">Search All</span>
+                    </button>
+                    <button
+                        id="metrics-btn"
+                        class="header-btn"
+                        title="View Metrics Dashboard"
+                    >
+                        <i class="fa-solid fa-chart-line"></i>
+                        <span class="header-btn-label">Metrics</span>
+                    </button>
+                    <button
+                        id="survey-btn"
+                        class="header-btn"
+                        title="Customer Feedback"
+                    >
+                        <i class="fa-solid fa-comment-dots"></i>
+                        <span class="header-btn-label">Feedback</span>
+                    </button>
+                    <div class="header-tip-container">
+                        <div class="header-tip">
+                            <i class="fa-solid fa-circle-info"></i>
+                            <div class="tip-content">
+                                <strong>Quick Tip</strong>
+                                <p>
+                                    Click the
+                                    <i class="fa-solid fa-book"></i> Library
+                                    icon to upload new manuals or load
+                                    previously uploaded ones.
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            id="library-btn"
+                            class="icon-btn"
+                            title="Manual Library"
+                        >
+                            <i class="fa-solid fa-book"></i>
+                        </button>
+                    </div>
+                    <button
+                        id="config-btn"
+                        class="icon-btn"
+                        title="Configuration"
+                    >
+                        <i class="fa-solid fa-gear"></i>
+                    </button>
+                    <button
+                        id="theme-toggle"
+                        class="icon-btn"
+                        title="Toggle Theme"
+                    >
+                        <i class="fa-solid fa-sun"></i>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Vertical Navigation Sidebar -->
+            <nav class="side-nav">
+                <button class="nav-item" data-panel="visuals" title="Visuals">
+                    <i class="fa-solid fa-image"></i>
+                    <span>Visuals</span>
+                </button>
+                <button
+                    class="nav-item"
+                    data-panel="knowledge"
+                    title="Knowledge"
+                >
+                    <i class="fa-solid fa-diagram-project"></i>
+                    <span>Knowledge</span>
+                </button>
+                <button
+                    class="nav-item"
+                    data-panel="troubleshoot"
+                    title="Troubleshoot"
+                >
+                    <i class="fa-solid fa-stethoscope"></i>
+                    <span>Troubleshoot</span>
+                </button>
+                <button class="nav-item" data-panel="annotate" title="Annotate">
+                    <i class="fa-solid fa-pen-ruler"></i>
+                    <span>Annotate</span>
+                </button>
+            </nav>
+
+            <main class="main-content">
+                <!-- RIGHT PANEL: Upload & Chat -->
+
+                <section class="glass-card chat-panel">
+                    <div id="extraction-status" class="status-text"></div>
+
+                    <div class="chat-container">
+                        <div class="chat-messages" id="chat-messages">
+                            <div class="message bot">
+                                <div class="message-content">
+                                    <strong>Welcome!</strong> Upload a manual to
+                                    begin. I can help with safety info, specs,
+                                    troubleshooting, and more.
+                                </div>
+                            </div>
+                        </div>
+                        <div class="quick-chips">
+                            <button
+                                class="quick-chip safety-chip"
+                                data-action="safety"
+                                title="Safety Warnings"
+                            >
+                                <i class="fa-solid fa-triangle-exclamation"></i>
+                                <span>Safety</span>
+                            </button>
+                            <button
+                                class="quick-chip warranty-chip"
+                                data-action="warranty"
+                                title="Warranty Info"
+                            >
+                                <i class="fa-solid fa-certificate"></i>
+                                <span>Warranty</span>
+                            </button>
+                            <button
+                                class="quick-chip diagnose-chip"
+                                data-action="troubleshoot"
+                                title="Troubleshoot"
+                            >
+                                <i class="fa-solid fa-screwdriver-wrench"></i>
+                                <span>Diagnose</span>
+                            </button>
+                            <button
+                                class="quick-chip parts-chip"
+                                data-action="parts"
+                                title="Parts & Specs"
+                            >
+                                <i class="fa-solid fa-microchip"></i>
+                                <span>Parts</span>
+                            </button>
+                        </div>
+                        <div
+                            id="chat-image-preview"
+                            class="chat-image-preview hidden"
+                        >
+                            <img id="chat-preview-img" src="" alt="Preview" />
+                            <button
+                                id="remove-chat-image"
+                                class="remove-image-btn"
+                            >
+                                <i class="fa-solid fa-xmark"></i>
+                            </button>
+                        </div>
+                        <div class="chat-input-area">
+                            <div class="attach-menu-container">
+                                <button
+                                    id="attach-image-btn"
+                                    class="attach-btn"
+                                    title="Attach image or page"
+                                >
+                                    <i class="fa-solid fa-plus"></i>
+                                </button>
+                                <div class="attach-menu" id="attach-menu">
+                                    <button
+                                        class="attach-menu-item"
+                                        id="attach-upload"
+                                    >
+                                        <i class="fa-solid fa-upload"></i>
+                                        <span>Upload Image</span>
+                                    </button>
+                                    <button
+                                        class="attach-menu-item"
+                                        id="attach-pdf-page"
+                                    >
+                                        <i class="fa-solid fa-file-pdf"></i>
+                                        <span>Insert PDF Page</span>
+                                    </button>
+                                    <button
+                                        class="attach-menu-item"
+                                        id="attach-annotated"
+                                    >
+                                        <i class="fa-solid fa-pen-ruler"></i>
+                                        <span>Insert Annotated Page</span>
+                                    </button>
+                                </div>
+                            </div>
+                            <input
+                                type="file"
+                                id="chat-image-input"
+                                accept="image/*"
+                                hidden
+                            />
+                            <input
+                                type="text"
+                                id="user-query"
+                                placeholder="Ask about the product..."
+                            />
+                            <button id="send-btn" class="send-btn" disabled>
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+            </main>
+
+            <!-- Slide-over Panels -->
+            <div id="panel-visuals" class="slide-panel">
+                <div class="slide-panel-header">
+                    <h2><i class="fa-solid fa-image"></i> Page Gallery</h2>
+                    <button class="panel-close" data-close="visuals">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="slide-panel-content">
+                    <div class="visual-header">
+                        <div class="visual-controls">
+                            <input
+                                type="text"
+                                id="page-search"
+                                placeholder="Search text, error codes, or diagrams..."
+                                class="page-search"
+                            />
+                            <span class="badge" id="page-count">0 Pages</span>
+                        </div>
+                    </div>
+                    <div id="visual-gallery" class="gallery-grid">
+                        <div class="empty-state">
+                            <i class="fa-regular fa-images"></i>
+                            <p>Upload a manual to see visuals</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-knowledge" class="slide-panel">
+                <div class="slide-panel-header">
+                    <h2>
+                        <i class="fa-solid fa-diagram-project"></i> Knowledge
+                        Graph
+                    </h2>
+                    <button class="panel-close" data-close="knowledge">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="slide-panel-content">
+                    <div class="knowledge-filters">
+                        <button class="filter-chip active" data-filter="all">
+                            All
+                        </button>
+                        <button class="filter-chip" data-filter="safety">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            Safety
+                        </button>
+                        <button class="filter-chip" data-filter="parts">
+                            <i class="fa-solid fa-gear"></i> Parts
+                        </button>
+                        <button class="filter-chip" data-filter="warranty">
+                            <i class="fa-solid fa-certificate"></i> Warranty
+                        </button>
+                        <button class="filter-chip" data-filter="procedures">
+                            <i class="fa-solid fa-list-check"></i> Procedures
+                        </button>
+                        <button class="filter-chip" data-filter="errors">
+                            <i class="fa-solid fa-bug"></i> Errors
+                        </button>
+                        <button class="filter-chip" data-filter="video">
+                            <i class="fa-solid fa-play"></i> Links
+                        </button>
+                    </div>
+                    <div id="knowledge-graph" class="knowledge-graph-container">
+                        <div class="empty-state">
+                            <i class="fa-solid fa-diagram-project"></i>
+                            <p>Knowledge graph will appear after processing</p>
+                        </div>
+                    </div>
+                    <div id="knowledge-list" class="knowledge-list"></div>
+                </div>
+            </div>
+
+            <div id="panel-troubleshoot" class="slide-panel">
+                <div class="slide-panel-header">
+                    <h2>
+                        <i class="fa-solid fa-stethoscope"></i> Troubleshooting
+                    </h2>
+                    <button class="panel-close" data-close="troubleshoot">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="slide-panel-content">
+                    <p class="troubleshoot-subtitle">
+                        Select an issue to get step-by-step guidance
+                    </p>
+                    <div class="issue-selector">
+                        <label>Issue Category:</label>
+                        <select id="issue-category">
+                            <option value="">-- Select an issue --</option>
+                            <option value="power">Power / Won't Turn On</option>
+                            <option value="display">Display Issues</option>
+                            <option value="audio">Audio Problems</option>
+                            <option value="connectivity">
+                                Connectivity Issues
+                            </option>
+                            <option value="performance">
+                                Performance / Slow
+                            </option>
+                            <option value="overheating">Overheating</option>
+                            <option value="error-codes">Error Codes</option>
+                            <option value="other">Other Issues</option>
+                        </select>
+                    </div>
+                    <div id="diagnostic-workflow" class="diagnostic-workflow">
+                        <div class="workflow-empty">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <p>
+                                Select an issue category above to start
+                                troubleshooting.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="error-lookup">
+                        <h4>
+                            <i class="fa-solid fa-search"></i> Error Code Lookup
+                        </h4>
+                        <div class="error-search-box">
+                            <input
+                                type="text"
+                                id="error-code-input"
+                                placeholder="Enter error code (e.g., E-01)"
+                            />
+                            <button id="lookup-error-btn" class="lookup-btn">
+                                <i class="fa-solid fa-magnifying-glass"></i>
+                            </button>
+                        </div>
+                        <div id="error-result" class="error-result"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="panel-annotate" class="slide-panel">
+                <div class="slide-panel-header">
+                    <h2>
+                        <i class="fa-solid fa-pen-ruler"></i> Diagram Annotation
+                    </h2>
+                    <button class="panel-close" data-close="annotate">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="slide-panel-content">
+                    <div class="annotate-controls">
+                        <button
+                            class="tool-btn active"
+                            data-tool="select"
+                            title="Select"
+                        >
+                            <i class="fa-solid fa-mouse-pointer"></i>
+                        </button>
+                        <button
+                            class="tool-btn"
+                            data-tool="marker"
+                            title="Add Marker"
+                        >
+                            <i class="fa-solid fa-location-dot"></i>
+                        </button>
+                        <button
+                            class="tool-btn"
+                            data-tool="rect"
+                            title="Rectangle"
+                        >
+                            <i class="fa-regular fa-square"></i>
+                        </button>
+                        <button
+                            class="tool-btn"
+                            data-tool="circle"
+                            title="Circle"
+                        >
+                            <i class="fa-regular fa-circle"></i>
+                        </button>
+                        <button
+                            class="tool-btn"
+                            data-tool="arrow"
+                            title="Arrow"
+                        >
+                            <i class="fa-solid fa-arrow-right"></i>
+                        </button>
+                        <button class="tool-btn" data-tool="text" title="Text">
+                            <i class="fa-solid fa-font"></i>
+                        </button>
+                        <div class="tool-separator"></div>
+                        <input
+                            type="color"
+                            id="annotation-color"
+                            value="#ff4d4f"
+                            title="Color"
+                        />
+                        <button
+                            class="tool-btn"
+                            id="clear-annotations"
+                            title="Clear"
+                        >
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                        <button
+                            class="tool-btn"
+                            id="export-annotated"
+                            title="Export"
+                        >
+                            <i class="fa-solid fa-download"></i>
+                        </button>
+                        <div class="tool-separator"></div>
+                        <button
+                            class="tool-btn chat-annotated-btn"
+                            id="chat-with-annotated"
+                            title="Chat with this annotated page"
+                        >
+                            <i class="fa-solid fa-comments"></i>
+                        </button>
+                    </div>
+                    <div class="annotate-workspace">
+                        <div class="page-selector">
+                            <label>Select Page:</label>
+                            <select id="annotate-page-select">
+                                <option value="">-- Select a page --</option>
+                            </select>
+                        </div>
+                        <div
+                            class="annotation-canvas-container"
+                            id="annotation-canvas-container"
+                        >
+                            <canvas id="annotation-canvas"></canvas>
+                            <div
+                                class="annotation-layer"
+                                id="annotation-layer"
+                            ></div>
+                        </div>
+                        <div class="annotation-list">
+                            <h4>Annotations</h4>
+                            <ul id="annotation-items">
+                                <li class="empty-annotations">
+                                    No annotations yet
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page Picker Modal -->
+        <div id="page-picker-modal" class="modal-overlay">
+            <div class="modal-content page-picker-modal-content">
+                <div class="page-picker-header">
+                    <i class="fa-solid fa-file-image page-picker-icon"></i>
+                    <h2>Select a Page</h2>
+                    <button class="modal-close">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="page-picker-body">
+                    <div class="page-picker" id="page-picker-grid">
+                        <div class="empty-state">
+                            <p>No pages available. Upload a PDF first.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Modal -->
+        <div id="image-modal" class="modal-overlay">
+            <div class="modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <img id="modal-image" src="" alt="Full view" />
+                <div class="modal-actions">
+                    <button class="modal-btn" id="modal-annotate-btn">
+                        <i class="fa-solid fa-pen-ruler"></i> Annotate
+                    </button>
+                    <button class="modal-btn" id="modal-identify-btn">
+                        <i class="fa-solid fa-search"></i> Identify Parts
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Warranty Modal -->
+        <div id="warranty-modal" class="modal-overlay">
+            <div class="modal-content warranty-modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="warranty-header">
+                    <i class="fa-solid fa-certificate warranty-icon"></i>
+                    <h2>Warranty Information</h2>
+                </div>
+                <div id="warranty-content" class="warranty-body">
+                    <div class="modal-loading">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Safety Modal -->
+        <div id="safety-modal" class="modal-overlay">
+            <div class="modal-content safety-modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="safety-header">
+                    <i class="fa-solid fa-triangle-exclamation safety-icon"></i>
+                    <h2>Safety Warnings</h2>
+                </div>
+                <div id="safety-content" class="safety-body">
+                    <div class="modal-loading">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Parts Modal -->
+        <div id="parts-modal" class="modal-overlay">
+            <div class="modal-content parts-modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="parts-header">
+                    <i class="fa-solid fa-microchip parts-icon"></i>
+                    <h2>Parts & Specifications</h2>
+                </div>
+                <div class="parts-search">
+                    <input
+                        type="text"
+                        id="parts-search-input"
+                        placeholder="Search parts..."
+                    />
+                </div>
+                <div id="parts-content" class="parts-body">
+                    <div class="modal-loading">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Metrics Modal -->
+        <div id="metrics-modal" class="modal-overlay">
+            <div class="modal-content metrics-modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="metrics-header">
+                    <i class="fa-solid fa-chart-line metrics-icon"></i>
+                    <h2>Metrics Dashboard</h2>
+                </div>
+                <div class="metrics-body">
+                    <div class="metrics-summary">
+                        <div class="metric-card">
+                            <div
+                                class="metric-icon"
+                                style="
+                                    background: linear-gradient(
+                                        135deg,
+                                        #667eea,
+                                        #764ba2
+                                    );
+                                "
+                            >
+                                <i class="fa-solid fa-book-open"></i>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value" id="total-queries"
+                                    >0</span
+                                ><span class="metric-label">Total Queries</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div
+                                class="metric-icon"
+                                style="
+                                    background: linear-gradient(
+                                        135deg,
+                                        #11998e,
+                                        #38ef7d
+                                    );
+                                "
+                            >
+                                <i class="fa-solid fa-check-circle"></i>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value" id="resolved-queries"
+                                    >0</span
+                                ><span class="metric-label">Self-Resolved</span>
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div
+                                class="metric-icon"
+                                style="
+                                    background: linear-gradient(
+                                        135deg,
+                                        #eb3349,
+                                        #f45c43
+                                    );
+                                "
+                            >
+                                <i class="fa-solid fa-ticket"></i>
+                            </div>
+                            <div class="metric-info">
+                                <span
+                                    class="metric-value"
+                                    id="tickets-prevented"
+                                    >0</span
+                                ><span class="metric-label"
+                                    >Tickets Prevented</span
+                                >
+                            </div>
+                        </div>
+                        <div class="metric-card">
+                            <div
+                                class="metric-icon"
+                                style="
+                                    background: linear-gradient(
+                                        135deg,
+                                        #f093fb,
+                                        #f5576c
+                                    );
+                                "
+                            >
+                                <i class="fa-solid fa-percentage"></i>
+                            </div>
+                            <div class="metric-info">
+                                <span class="metric-value" id="reduction-rate"
+                                    >0%</span
+                                ><span class="metric-label"
+                                    >Reduction Rate</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                    <div class="metrics-charts">
+                        <div class="chart-container">
+                            <h4>Query Categories</h4>
+                            <div class="category-bars">
+                                <div class="category-bar">
+                                    <span class="cat-label">Safety</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill safety-bar"></div>
+                                    </div>
+                                    <span class="cat-value" data-cat="safety"
+                                        >0</span
+                                    >
+                                </div>
+                                <div class="category-bar">
+                                    <span class="cat-label">Parts</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill parts-bar"></div>
+                                    </div>
+                                    <span class="cat-value" data-cat="parts"
+                                        >0</span
+                                    >
+                                </div>
+                                <div class="category-bar">
+                                    <span class="cat-label">Warranty</span>
+                                    <div class="bar-track">
+                                        <div
+                                            class="bar-fill warranty-bar"
+                                        ></div>
+                                    </div>
+                                    <span class="cat-value" data-cat="warranty"
+                                        >0</span
+                                    >
+                                </div>
+                                <div class="category-bar">
+                                    <span class="cat-label">Troubleshoot</span>
+                                    <div class="bar-track">
+                                        <div
+                                            class="bar-fill procedures-bar"
+                                        ></div>
+                                    </div>
+                                    <span
+                                        class="cat-value"
+                                        data-cat="procedures"
+                                        >0</span
+                                    >
+                                </div>
+                                <div class="category-bar">
+                                    <span class="cat-label">Errors</span>
+                                    <div class="bar-track">
+                                        <div class="bar-fill errors-bar"></div>
+                                    </div>
+                                    <span class="cat-value" data-cat="errors"
+                                        >0</span
+                                    >
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chart-container">
+                            <h4>Satisfaction</h4>
+                            <div class="satisfaction-display">
+                                <div class="satisfaction-ring">
+                                    <svg viewBox="0 0 36 36">
+                                        <path
+                                            class="ring-bg"
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        />
+                                        <path
+                                            class="ring-fill"
+                                            stroke-dasharray="0, 100"
+                                            d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                                        />
+                                    </svg>
+                                    <div class="ring-value">
+                                        <span id="satisfaction-value">0</span
+                                        ><small>/5</small>
+                                    </div>
+                                </div>
+                                <div class="satisfaction-breakdown">
+                                    <div class="rating-row">
+                                        <span>5 Stars</span
+                                        ><span id="rating-5">0</span>
+                                    </div>
+                                    <div class="rating-row">
+                                        <span>4 Stars</span
+                                        ><span id="rating-4">0</span>
+                                    </div>
+                                    <div class="rating-row">
+                                        <span>3 Stars</span
+                                        ><span id="rating-3">0</span>
+                                    </div>
+                                    <div class="rating-row">
+                                        <span>2 Stars</span
+                                        ><span id="rating-2">0</span>
+                                    </div>
+                                    <div class="rating-row">
+                                        <span>1 Star</span
+                                        ><span id="rating-1">0</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="recent-activity">
+                        <h4>Recent Activity</h4>
+                        <ul id="activity-log">
+                            <li class="activity-empty">No activity yet</li>
+                        </ul>
+                    </div>
+                    <div class="metrics-export">
+                        <button class="export-btn" id="export-csv">
+                            <i class="fa-solid fa-file-csv"></i> CSV
+                        </button>
+                        <button class="export-btn" id="export-json">
+                            <i class="fa-solid fa-file-code"></i> JSON
+                        </button>
+                        <button class="export-btn" id="reset-metrics">
+                            <i class="fa-solid fa-rotate"></i> Reset
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Survey Modal -->
+        <div id="survey-modal" class="modal-overlay">
+            <div class="modal-content survey-modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="survey-header">
+                    <i class="fa-solid fa-comment-dots survey-icon"></i>
+                    <h2>How did we do?</h2>
+                    <p>Your feedback helps us improve</p>
+                </div>
+                <div class="survey-body">
+                    <div class="survey-question">
+                        <label>Did you find what you were looking for?</label>
+                        <div class="survey-options" data-question="found">
+                            <button class="survey-option" data-value="yes">
+                                <i class="fa-solid fa-check"></i> Yes
+                            </button>
+                            <button class="survey-option" data-value="partial">
+                                <i class="fa-solid fa-minus"></i> Partial
+                            </button>
+                            <button class="survey-option" data-value="no">
+                                <i class="fa-solid fa-xmark"></i> No
+                            </button>
+                        </div>
+                    </div>
+                    <div class="survey-question">
+                        <label>Rate your experience:</label>
+                        <div class="star-rating" id="star-rating">
+                            <i class="fa-regular fa-star" data-rating="1"></i>
+                            <i class="fa-regular fa-star" data-rating="2"></i>
+                            <i class="fa-regular fa-star" data-rating="3"></i>
+                            <i class="fa-regular fa-star" data-rating="4"></i>
+                            <i class="fa-regular fa-star" data-rating="5"></i>
+                        </div>
+                    </div>
+                    <div class="survey-question">
+                        <label>Would you have contacted support?</label>
+                        <div class="survey-options" data-question="support">
+                            <button
+                                class="survey-option"
+                                data-value="definitely"
+                            >
+                                <i class="fa-solid fa-phone"></i> Yes
+                            </button>
+                            <button class="survey-option" data-value="maybe">
+                                <i class="fa-solid fa-question"></i> Maybe
+                            </button>
+                            <button class="survey-option" data-value="no">
+                                <i class="fa-solid fa-ban"></i> No
+                            </button>
+                        </div>
+                    </div>
+                    <div class="survey-question">
+                        <label>Comments (optional):</label>
+                        <textarea
+                            id="survey-comments"
+                            placeholder="Tell us more..."
+                        ></textarea>
+                    </div>
+                    <button
+                        class="primary-btn survey-submit"
+                        id="submit-survey"
+                    >
+                        <i class="fa-solid fa-paper-plane"></i> Submit
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Modal -->
+        <div id="video-modal" class="modal-overlay">
+            <div class="modal-content video-modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="video-header">
+                    <i class="fa-solid fa-play-circle video-icon"></i>
+                    <h2>Tutorials & Links</h2>
+                </div>
+                <div id="video-content" class="video-body">
+                    <div class="modal-loading">
+                        <i class="fa-solid fa-spinner fa-spin"></i>
+                        <p>Loading...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cross Search Modal -->
+        <div id="cross-search-modal" class="modal-overlay">
+            <div class="modal-content cross-search-modal-content">
+                <button class="modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+                <div class="cross-search-header">
+                    <i
+                        class="fa-solid fa-magnifying-glass-plus cross-search-icon"
+                    ></i>
+                    <h2>Cross-Manual Search</h2>
+                </div>
+                <div class="cross-search-body">
+                    <div class="cross-search-input">
+                        <input
+                            type="text"
+                            id="cross-search-query"
+                            placeholder="Search across all manuals..."
+                        />
+                        <button id="cross-search-btn" class="lookup-btn">
+                            <i class="fa-solid fa-search"></i>
+                        </button>
+                    </div>
+                    <div id="cross-search-results" class="cross-search-results">
+                        <div class="empty-state">
+                            <p>Enter a search term</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="toast-container" class="toast-container"></div>
+
+        <!-- Library Modal -->
+        <div id="library-modal" class="modal-overlay">
+            <div class="modal-content library-modal-content">
+                <div class="library-modal-header">
+                    <i class="fa-solid fa-book library-icon"></i>
+                    <h2>Manual Library</h2>
+                    <span class="badge" id="manual-count">0</span>
+                    <button class="modal-close">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="library-modal-body">
+                    <div class="upload-area" id="drop-zone">
+                        <input
+                            type="file"
+                            id="pdf-upload"
+                            accept=".pdf"
+                            hidden
+                        />
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span id="file-name">Upload PDF Manual</span>
+                    </div>
+                    <div class="library-list" id="library-list">
+                        <div class="library-empty">No manuals loaded</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Modal -->
+        <div id="config-modal" class="modal-overlay">
+            <div class="modal-content config-modal-content">
+                <div class="config-header">
+                    <i class="fa-solid fa-gear config-icon"></i>
+                    <h2>Configuration</h2>
+                    <button
+                        class="modal-refresh"
+                        id="refresh-models-btn"
+                        title="Refresh Models"
+                    >
+                        <i class="fa-solid fa-rotate"></i>
+                    </button>
+                    <button class="modal-close">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+                <div class="config-body">
+                    <div class="input-group">
+                        <label>ScaleDown API Key</label>
+                        <div class="input-with-toggle">
+                            <input
+                                type="password"
+                                id="scaledown-key"
+                                placeholder="Enter ScaleDown Key"
+                            />
+                            <button
+                                type="button"
+                                class="eye-toggle"
+                                onclick="togglePassword('scaledown-key', this)"
+                            >
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>ScaleDown Model</label>
+                        <select id="scaledown-model">
+                            <option value="gpt-4o">gpt-4o</option>
+                            <option value="gpt-4o-mini">gpt-4o-mini</option>
+                            <option value="gemini-2.5-flash">
+                                gemini-2.5-flash
+                            </option>
+                            <option value="gemini-2.5-pro">
+                                gemini-2.5-pro
+                            </option>
+                            <option value="gemini-2.5-flash-lite">
+                                gemini-2.5-flash-lite
+                            </option>
+                            <option value="gemini-2.0-flash">
+                                gemini-2.0-flash
+                            </option>
+                        </select>
+                    </div>
+                    <div class="input-group">
+                        <label>Gemini API Key</label>
+                        <div class="input-with-toggle">
+                            <input
+                                type="password"
+                                id="gemini-key"
+                                placeholder="Enter Gemini Key"
+                            />
+                            <button
+                                type="button"
+                                class="eye-toggle"
+                                onclick="togglePassword('gemini-key', this)"
+                            >
+                                <i class="fa-solid fa-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="input-group">
+                        <label>Gemini Model</label>
+                        <select id="gemini-model">
+                            <option value="gemini-2.0-flash">Loading...</option>
+                        </select>
+                    </div>
+                    <button class="primary-btn" id="save-keys">
+                        Save Keys
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <script src="script.js"></script>
+    </body>
+</html>
